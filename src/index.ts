@@ -13,6 +13,7 @@ import {
   updateBoard, deleteBoard, canAccessBoard, boardPublicView,
 } from "./boards";
 import { listCards, createCard, updateCard, moveCard, deleteCard, getCard } from "./cards";
+import { listSections, createSection, updateSection, moveSection, deleteSection, getSection } from "./sections";
 import { saveUpload } from "./uploads";
 import { checkWsAccess, joinRoom, leaveRoom, handleWsMessage, broadcast } from "./ws";
 
@@ -34,6 +35,14 @@ function currentUser(c: Context): { id: number; username: string } | null {
 function requireLogin(c: any) {
   const u = currentUser(c);
   if (!u) return c.json({ ok: false, error: "Silakan login dulu." }, 401);
+  return u;
+}
+
+// Pemilik papan saja (untuk kelola bagian & ganti layout).
+function requireOwner(c: any, board: Board) {
+  const u = requireLogin(c);
+  if (u instanceof Response) return u;
+  if (board.owner_id !== u.id) return c.json({ ok: false, error: "Hanya pemilik papan." }, 403);
   return u;
 }
 
@@ -121,8 +130,11 @@ app.patch("/api/boards/:id", async (c) => {
   if (u instanceof Response) return u;
   const board = getBoard(Number(c.req.param("id")));
   if (!board || board.owner_id !== u.id) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
-  const { title, description, share_mode } = await c.req.json().catch(() => ({}));
-  const updated = updateBoard(board.id, { title, description, share_mode });
+  const { title, description, share_mode, layout } = await c.req.json().catch(() => ({}));
+  const updated = updateBoard(board.id, { title, description, share_mode, layout });
+  if (updated && updated.layout !== board.layout) {
+    broadcast(board.id, { type: "board.updated", board: boardPublicView(updated) });
+  }
   return c.json({ ok: true, board: updated });
 });
 
@@ -133,6 +145,68 @@ app.delete("/api/boards/:id", (c) => {
   if (!board || board.owner_id !== u.id) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
   broadcast(board.id, { type: "board.deleted", id: board.id });
   deleteBoard(board.id);
+  return c.json({ ok: true });
+});
+
+// ---------- sections (bagian/kolom; kelola hanya pemilik, tiap perubahan disiarkan) ----------
+
+function boardAndSection(c: any) {
+  const board = getBoard(Number(c.req.param("id")));
+  if (!board) return { err: c.json({ ok: false, error: "Papan tidak ditemukan." }, 404) };
+  const section = getSection(Number(c.req.param("sectionId")));
+  if (!section || section.board_id !== board.id) {
+    return { err: c.json({ ok: false, error: "Bagian tidak ditemukan." }, 404) };
+  }
+  return { board, section };
+}
+
+app.get("/api/boards/:id/sections", (c) => {
+  const board = getBoard(Number(c.req.param("id")));
+  if (!board) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
+  if (!boardAccess(c, board)) return c.json({ ok: false, error: "Tidak punya akses." }, 403);
+  return c.json({ ok: true, sections: listSections(board.id) });
+});
+
+app.post("/api/boards/:id/sections", async (c) => {
+  const board = getBoard(Number(c.req.param("id")));
+  if (!board) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
+  const owner = requireOwner(c, board);
+  if (owner instanceof Response) return owner;
+  const { title } = await c.req.json().catch(() => ({}));
+  const section = createSection(board.id, String(title || ""));
+  broadcast(board.id, { type: "section.added", section, by: "rest" });
+  return c.json({ ok: true, section });
+});
+
+app.patch("/api/boards/:id/sections/:sectionId", async (c) => {
+  const r = boardAndSection(c);
+  if (r.err) return r.err;
+  const owner = requireOwner(c, r.board!);
+  if (owner instanceof Response) return owner;
+  const { title } = await c.req.json().catch(() => ({}));
+  const section = updateSection(r.section!.id, String(title || ""));
+  broadcast(r.board!.id, { type: "section.updated", section, by: "rest" });
+  return c.json({ ok: true, section });
+});
+
+app.post("/api/boards/:id/sections/:sectionId/move", async (c) => {
+  const r = boardAndSection(c);
+  if (r.err) return r.err;
+  const owner = requireOwner(c, r.board!);
+  if (owner instanceof Response) return owner;
+  const { position } = await c.req.json().catch(() => ({}));
+  const section = moveSection(r.section!.id, Number(position));
+  broadcast(r.board!.id, { type: "section.moved", section, by: "rest" });
+  return c.json({ ok: true, section });
+});
+
+app.delete("/api/boards/:id/sections/:sectionId", (c) => {
+  const r = boardAndSection(c);
+  if (r.err) return r.err;
+  const owner = requireOwner(c, r.board!);
+  if (owner instanceof Response) return owner;
+  const cardIds = deleteSection(r.section!.id);
+  broadcast(r.board!.id, { type: "section.deleted", id: r.section!.id, cardIds, by: "rest" });
   return c.json({ ok: true });
 });
 
@@ -173,8 +247,9 @@ app.post("/api/boards/:id/cards/:cardId/move", async (c) => {
   if (!boardAccess(c, board)) return c.json({ ok: false, error: "Tidak punya akses." }, 403);
   const existing = getCard(Number(c.req.param("cardId")));
   if (!existing || existing.board_id !== board.id) return c.json({ ok: false, error: "Kartu tidak ditemukan." }, 404);
-  const { position } = await c.req.json().catch(() => ({}));
-  const card = moveCard(existing.id, Number(position));
+  const { position, section_id } = await c.req.json().catch(() => ({}));
+  const sec = section_id === undefined ? undefined : section_id === null ? null : Number(section_id);
+  const card = moveCard(existing.id, Number(position), sec);
   broadcast(board.id, { type: "card.moved", card, by: "rest" });
   return c.json({ ok: true, card });
 });

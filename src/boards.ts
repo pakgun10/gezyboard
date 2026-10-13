@@ -1,6 +1,7 @@
 import { db, type Board } from "./db";
 
 const SHARE_MODES = ["private", "link", "public"] as const;
+const LAYOUTS = ["wall", "shelf"] as const;
 
 export function newShareToken(): string {
   return crypto.randomUUID().replace(/-/g, "");
@@ -27,13 +28,16 @@ export function listBoardsByOwner(ownerId: number): Board[] {
   return db.prepare("SELECT * FROM boards WHERE owner_id = ? ORDER BY id DESC").all(ownerId) as Board[];
 }
 
-export function updateBoard(id: number, fields: { title?: string; description?: string; share_mode?: string }): Board | null {
+export function updateBoard(id: number, fields: { title?: string; description?: string; share_mode?: string; layout?: string }): Board | null {
   const sets: string[] = [];
   const vals: unknown[] = [];
   if (fields.title !== undefined) { sets.push("title = ?"); vals.push(fields.title.trim() || "Papan Tanpa Judul"); }
   if (fields.description !== undefined) { sets.push("description = ?"); vals.push(fields.description.trim()); }
   if (fields.share_mode !== undefined && (SHARE_MODES as readonly string[]).includes(fields.share_mode)) {
     sets.push("share_mode = ?"); vals.push(fields.share_mode);
+  }
+  if (fields.layout !== undefined && (LAYOUTS as readonly string[]).includes(fields.layout)) {
+    sets.push("layout = ?"); vals.push(fields.layout);
   }
   if (sets.length === 0) return getBoard(id);
   vals.push(id);

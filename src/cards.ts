@@ -1,4 +1,5 @@
 import { db, type Card } from "./db";
+import { getSection } from "./sections";
 
 const KINDS = ["text", "image", "link"] as const;
 const COLORS = ["yellow", "pink", "green", "blue", "purple", "orange"] as const;
@@ -11,6 +12,7 @@ export interface CardInput {
   link_url?: string;
   color?: string;
   author_name?: string;
+  section_id?: number | null;
 }
 
 function clean(input: CardInput) {
@@ -35,15 +37,28 @@ export function getCard(id: number): Card | null {
   return (db.prepare("SELECT * FROM cards WHERE id = ?").get(id) as Card) ?? null;
 }
 
-// position: kelipatan 1000. Kartu baru ditaruh paling belakang.
+// position: kelipatan 1000, dihitung PER BAGIAN (atau per papan untuk mode wall).
+// Kartu baru ditaruh paling belakang di bagiannya.
 export function createCard(boardId: number, input: CardInput): Card {
   const c = clean(input);
-  const maxPos = db.prepare("SELECT COALESCE(MAX(position), 0) AS m FROM cards WHERE board_id = ?").get(boardId) as { m: number };
+  let sectionId: number | null = null;
+  if (input.section_id !== undefined && input.section_id !== null) {
+    const sec = getSection(Number(input.section_id));
+    if (!sec || sec.board_id !== boardId) throw new Error("Bagian tidak valid.");
+    sectionId = sec.id;
+  }
+  const scope =
+    sectionId === null
+      ? { sql: "board_id = ? AND section_id IS NULL", params: [boardId] as unknown[] }
+      : { sql: "board_id = ? AND section_id = ?", params: [boardId, sectionId] as unknown[] };
+  const maxPos = db
+    .prepare(`SELECT COALESCE(MAX(position), 0) AS m FROM cards WHERE ${scope.sql}`)
+    .get(...scope.params) as { m: number };
   const position = Math.floor(maxPos.m / 1000) * 1000 + 1000;
   const stmt = db.prepare(
-    "INSERT INTO cards (board_id, author_name, kind, title, body, media_url, link_url, color, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+    "INSERT INTO cards (board_id, author_name, kind, title, body, media_url, link_url, color, position, section_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
   );
-  return stmt.get(boardId, c.author_name, c.kind, c.title, c.body, c.media_url, c.link_url, c.color, position) as Card;
+  return stmt.get(boardId, c.author_name, c.kind, c.title, c.body, c.media_url, c.link_url, c.color, position, sectionId) as Card;
 }
 
 export function updateCard(id: number, input: CardInput): Card | null {
@@ -54,9 +69,20 @@ export function updateCard(id: number, input: CardInput): Card | null {
   return getCard(id);
 }
 
-export function moveCard(id: number, position: number): Card | null {
+export function moveCard(id: number, position: number, sectionId?: number | null): Card | null {
+  const existing = getCard(id);
+  if (!existing) return null;
   const pos = Number.isFinite(position) ? position : 0;
-  db.prepare("UPDATE cards SET position = ?, updated_at = datetime('now') WHERE id = ?").run(pos, id);
+  if (sectionId === undefined) {
+    // pindah posisi saja, bagian tidak berubah (kompatibel wall lama)
+    db.prepare("UPDATE cards SET position = ?, updated_at = datetime('now') WHERE id = ?").run(pos, id);
+  } else if (sectionId === null) {
+    db.prepare("UPDATE cards SET position = ?, section_id = NULL, updated_at = datetime('now') WHERE id = ?").run(pos, id);
+  } else {
+    const sec = getSection(Number(sectionId));
+    if (!sec || sec.board_id !== existing.board_id) throw new Error("Bagian tidak valid.");
+    db.prepare("UPDATE cards SET position = ?, section_id = ?, updated_at = datetime('now') WHERE id = ?").run(pos, sec.id, id);
+  }
   return getCard(id);
 }
 

@@ -222,3 +222,85 @@ footer {
   .topbar input.name-input { width: 110px; }
   main { padding: 16px 12px; }
 }
+
+/* ---------- papan (shelf / kolom) ---------- */
+.layout-switch {
+  display: flex; gap: 4px; background: #eef0f8; border-radius: 999px; padding: 4px;
+}
+.layout-switch button {
+  border: none; background: transparent; border-radius: 999px;
+  padding: 6px 14px; font-weight: 700; cursor: pointer; color: var(--muted); font-size: .9rem;
+}
+.layout-switch button.sel { background: var(--navy); color: #fff; }
+.shelf {
+  display: flex; gap: 16px; overflow-x: auto; align-items: flex-start;
+  padding: 20px; border-radius: 20px; min-height: 55vh;
+  background: linear-gradient(135deg, #1e2a5a 0%, #2c4a7c 60%, #1e2a5a 100%);
+}
+.section { width: 300px; flex-shrink: 0; }
+.section-header {
+  background: rgba(0,0,0,.28); color: #fff; border-radius: 12px;
+  padding: 12px 14px; font-weight: 700; font-size: .95rem;
+  border-top: 4px solid var(--gold);
+  display: flex; align-items: center; gap: 8px;
+}
+.section-header > span:first-child { flex: 1; }
+.sec-actions { display: flex; gap: 2px; }
+.sec-actions button {
+  border: none; background: transparent; color: rgba(255,255,255,.75);
+  cursor: pointer; font-size: .85rem; padding: 2px 4px; border-radius: 6px;
+}
+.sec-actions button:hover { background: rgba(255,255,255,.2); color: #fff; }
+.add-card-btn {
+  width: 100%; margin: 10px 0; padding: 8px;
+  border: 2px dashed rgba(255,255,255,.45); border-radius: 10px;
+  background: rgba(255,255,255,.08); color: #fff; font-size: 1.1rem; cursor: pointer;
+}
+.add-card-btn:hover { background: rgba(255,255,255,.18); }
+.section-cards { min-height: 60px; border-radius: 10px; }
+.shelf-card {
+  background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+  box-shadow: 0 3px 8px rgba(0,0,0,.22); cursor: grab; position: relative;
+  word-wrap: break-word;
+}
+.shelf-card:active { cursor: grabbing; }
+.shelf-card.dragging { opacity: .5; }
+.shelf-card.drop-before { box-shadow: 0 -6px 0 var(--gold); }
+.shelf-card.drop-after { box-shadow: 0 6px 0 var(--gold); }
+.shelf-card h3 { margin: 0 0 6px; font-size: .98rem; color: var(--ink); }
+.shelf-card p { margin: 0 0 6px; font-size: .88rem; color: #4a5568; line-height: 1.5; white-space: pre-wrap; }
+.shelf-card img { max-width: 100%; border-radius: 10px; margin: 8px 0; display: block; }
+.shelf-card a.link-card { color: var(--navy); font-weight: 700; }
+.card-author { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.card-author .avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: var(--gold); color: var(--navy-dark);
+  font-weight: 800; display: flex; align-items: center; justify-content: center;
+  font-size: .8rem; flex-shrink: 0;
+}
+.card-author .name { font-size: .78rem; font-weight: 700; color: #4a5568; }
+.card-author .time { font-size: .72rem; color: #a0aec0; }
+.card-footer {
+  display: flex; align-items: center; gap: 12px; margin-top: 10px;
+  padding-top: 8px; border-top: 1px solid #edf2f7;
+  font-size: .78rem; color: #a0aec0;
+}
+.shelf-card .actions { position: absolute; top: 8px; right: 8px; display: none; gap: 4px; }
+.shelf-card:hover .actions { display: flex; }
+.shelf-card .actions button {
+  border: none; border-radius: 8px; width: 28px; height: 28px; cursor: pointer;
+  background: rgba(255,255,255,.9); box-shadow: 0 1px 4px rgba(0,0,0,.2); font-size: .9rem;
+}
+.add-section {
+  width: 300px; flex-shrink: 0; padding: 22px;
+  border: 2px dashed rgba(255,255,255,.45); border-radius: 12px;
+  background: rgba(255,255,255,.06); color: #fff; font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.add-section:hover { background: rgba(255,255,255,.14); }
+.shelf-hint { color: rgba(255,255,255,.8); padding: 30px; }
+.fab {
+  position: fixed; right: 24px; bottom: 70px; background: var(--gold); color: var(--navy-dark);
+  border: none; border-radius: 999px; padding: 14px 22px;
+  font-size: 1rem; font-weight: 800; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0,0,0,.3); z-index: 60;
+}
+.fab:hover { background: #ffc61a; }

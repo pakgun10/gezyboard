@@ -80,10 +80,15 @@
         <div class="hint" id="boardDescView"></div>
       </div>
       <div class="spacer" style="flex:1"></div>
+      <div class="layout-switch" id="layoutSwitch" style="display:none">
+        <button data-layout="wall">🧱 Wall</button>
+        <button data-layout="shelf">📑 Kolom</button>
+      </div>
       <button class="btn btn-ghost btn-small" id="copyLinkBtn" style="color:var(--navy); border-color:var(--navy)">🔗 Salin tautan</button>
       <button class="btn btn-gold" id="addCardBtn">＋ Tempel kartu</button>
     </div>
     <div class="wall" id="wall"></div>
+    <div class="shelf" id="shelf" style="display:none"></div>
     <div class="empty" id="wallEmpty" style="display:none">
       <div class="big">📝</div>
       <p>Papan masih kosong. Jadilah yang pertama menempel kartu! ✨</p>
@@ -117,6 +122,10 @@
       <label for="cardLink">URL tautan</label>
       <input id="cardLink" placeholder="https://contoh.id/artikel">
     </div>
+    <div class="field" id="sectionField" style="display:none">
+      <label for="cardSection">Bagian</label>
+      <select id="cardSection"></select>
+    </div>
     <div class="field">
       <label>Warna kartu</label>
       <div class="color-pick" id="colorPick">
@@ -137,6 +146,8 @@
 </div>
 
 <footer>© 2026 GezyTech App · Dikembangkan oleh PakGun · Dilarang menyalin/menduplikat kode tanpa izin tertulis.</footer>
+
+<button class="fab" id="fabPost" style="display:none">＋ Post</button>
 
 <script src="/app.js"></script>
 </body>

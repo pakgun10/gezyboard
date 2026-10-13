@@ -60,7 +60,23 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- Fase 2: layout shelf — tabel sections (bagian/kolom per papan).
+CREATE TABLE IF NOT EXISTS sections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT '',
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sections_board ON sections(board_id, position);
 `);
+
+ // Migrasi Fase 2: kolom cards.section_id (NULL = mode wall, tetap kompatibel).
+const cardCols = db.prepare("PRAGMA table_info(cards)").all() as { name: string }[];
+if (!cardCols.some((c) => c.name === "section_id")) {
+  db.exec("ALTER TABLE cards ADD COLUMN section_id INTEGER REFERENCES sections(id) ON DELETE CASCADE");
+}
 
 export interface User { id: number; username: string; password_hash: string; created_at: string }
 export interface Board {
@@ -70,5 +86,10 @@ export interface Board {
 export interface Card {
   id: number; board_id: number; author_name: string; kind: string;
   title: string; body: string; media_url: string; link_url: string;
-  color: string; position: number; created_at: string; updated_at: string;
+  color: string; position: number; section_id: number | null;
+  created_at: string; updated_at: string;
+}
+
+export interface Section {
+  id: number; board_id: number; title: string; position: number; created_at: string;
 }

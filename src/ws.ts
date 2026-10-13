@@ -2,6 +2,7 @@ import type { ServerWebSocket } from "bun";
 import { getBoard, canAccessBoard } from "./boards";
 import { getUserBySession, sessionTokenFromCookieHeader } from "./auth";
 import { listCards, createCard, updateCard, moveCard, deleteCard, getCard } from "./cards";
+import { listSections, createSection, updateSection, moveSection, deleteSection, getSection } from "./sections";
 
 interface WsData {
   boardId: number;
@@ -34,8 +35,8 @@ export function broadcast(boardId: number, payload: unknown): void {
 export function joinRoom(ws: RoomSocket): void {
   const { boardId } = ws.data;
   roomOf(boardId).add(ws);
-  // sync.full: seluruh kartu papan dikirim saat baru bergabung (sesuai rancangan §4).
-  ws.send(JSON.stringify({ type: "sync.full", cards: listCards(boardId) }));
+  // sync.full: seluruh bagian + kartu papan dikirim saat baru bergabung (sesuai rancangan §4).
+  ws.send(JSON.stringify({ type: "sync.full", sections: listSections(boardId), cards: listCards(boardId) }));
   broadcast(boardId, { type: "presence", count: roomSize(boardId) });
 }
 
@@ -72,10 +73,49 @@ export function handleWsMessage(ws: RoomSocket, raw: string | Buffer): void {
   const { boardId, clientId, userId } = ws.data;
   const board = getBoard(boardId);
   if (!board) { sendError(ws, "Papan tidak ditemukan."); return; }
+  // Kelola bagian hanya boleh pemilik papan.
+  const isOwner = userId !== null && board.owner_id === userId;
+  const needOwner = () => {
+    if (!isOwner) { sendError(ws, "Hanya pemilik papan yang boleh mengelola bagian."); return false; }
+    return true;
+  };
 
   // Aturan rancangan: tulis ke DB dulu, broadcast sesudahnya.
   try {
     switch (msg.type) {
+      case "section.add": {
+        if (!needOwner()) break;
+        const section = createSection(boardId, String(msg.data?.title ?? ""));
+        broadcast(boardId, { type: "section.added", section, by: clientId });
+        break;
+      }
+      case "section.update": {
+        if (!needOwner()) break;
+        const id = Number(msg.data?.id);
+        const existing = getSection(id);
+        if (!existing || existing.board_id !== boardId) { sendError(ws, "Bagian tidak ditemukan."); break; }
+        const section = updateSection(id, String(msg.data?.title ?? ""));
+        broadcast(boardId, { type: "section.updated", section, by: clientId });
+        break;
+      }
+      case "section.move": {
+        if (!needOwner()) break;
+        const id = Number(msg.data?.id);
+        const existing = getSection(id);
+        if (!existing || existing.board_id !== boardId) { sendError(ws, "Bagian tidak ditemukan."); break; }
+        const section = moveSection(id, Number(msg.data?.position));
+        broadcast(boardId, { type: "section.moved", section, by: clientId });
+        break;
+      }
+      case "section.delete": {
+        if (!needOwner()) break;
+        const id = Number(msg.data?.id);
+        const existing = getSection(id);
+        if (!existing || existing.board_id !== boardId) { sendError(ws, "Bagian tidak ditemukan."); break; }
+        const cardIds = deleteSection(id); // kartu di dalamnya ikut terhapus (CASCADE)
+        broadcast(boardId, { type: "section.deleted", id, cardIds, by: clientId });
+        break;
+      }
       case "card.add": {
         const card = createCard(boardId, (msg.data ?? {}) as never);
         broadcast(boardId, { type: "card.added", card, by: clientId });
@@ -93,7 +133,9 @@ export function handleWsMessage(ws: RoomSocket, raw: string | Buffer): void {
         const id = Number(msg.data?.id);
         const existing = getCard(id);
         if (!existing || existing.board_id !== boardId) { sendError(ws, "Kartu tidak ditemukan."); break; }
-        const card = moveCard(id, Number(msg.data?.position));
+        const rawSec = msg.data?.section_id;
+        const sectionId = rawSec === undefined ? undefined : rawSec === null ? null : Number(rawSec);
+        const card = moveCard(id, Number(msg.data?.position), sectionId);
         broadcast(boardId, { type: "card.moved", card, by: clientId });
         break;
       }
