@@ -3,6 +3,7 @@ import { getSection } from "./sections";
 
 const KINDS = ["text", "image", "link"] as const;
 const COLORS = ["yellow", "pink", "green", "blue", "purple", "orange"] as const;
+const CARD_SELECT = "SELECT c.*, (SELECT COUNT(*) FROM comments cm WHERE cm.card_id = c.id) AS comments_count FROM cards c";
 
 export interface CardInput {
   kind?: string;
@@ -29,12 +30,12 @@ function clean(input: CardInput) {
 
 export function listCards(boardId: number): Card[] {
   return db
-    .prepare("SELECT * FROM cards WHERE board_id = ? ORDER BY position ASC, id ASC")
+    .prepare(CARD_SELECT + " WHERE c.board_id = ? ORDER BY c.position ASC, c.id ASC")
     .all(boardId) as Card[];
 }
 
 export function getCard(id: number): Card | null {
-  return (db.prepare("SELECT * FROM cards WHERE id = ?").get(id) as Card) ?? null;
+  return (db.prepare(CARD_SELECT + " WHERE c.id = ?").get(id) as Card) ?? null;
 }
 
 // position: kelipatan 1000, dihitung PER BAGIAN (atau per papan untuk mode wall).

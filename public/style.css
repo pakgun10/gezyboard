@@ -263,6 +263,12 @@ footer {
   box-shadow: 0 3px 8px rgba(0,0,0,.22); cursor: grab; position: relative;
   word-wrap: break-word;
 }
+.shelf-card.note-yellow { background: #fff3ad; }
+.shelf-card.note-pink { background: #ffd9e3; }
+.shelf-card.note-green { background: #d9f5d0; }
+.shelf-card.note-blue { background: #d4e9ff; }
+.shelf-card.note-purple { background: #e7dbff; }
+.shelf-card.note-orange { background: #ffe6c7; }
 .shelf-card:active { cursor: grabbing; }
 .shelf-card.dragging { opacity: .5; }
 .shelf-card.drop-before { box-shadow: 0 -6px 0 var(--gold); }
@@ -284,6 +290,22 @@ footer {
   padding-top: 8px; border-top: 1px solid #edf2f7;
   font-size: .78rem; color: #a0aec0;
 }
+.comment-link {
+  border: 0; padding: 0; background: transparent; color: #718096;
+  font: inherit; cursor: pointer;
+}
+.comment-link:hover { color: var(--navy); text-decoration: underline; }
+.comment-modal { max-width: 560px; }
+.comment-list {
+  max-height: 300px; overflow-y: auto; margin: 0 0 16px;
+  border: 1px solid #edf2f7; border-radius: 12px; background: #fafbfe;
+}
+.comment-empty { padding: 24px 16px; text-align: center; color: var(--muted); }
+.comment-item { padding: 12px 14px; border-bottom: 1px solid #edf2f7; }
+.comment-item:last-child { border-bottom: 0; }
+.comment-head { display: flex; justify-content: space-between; gap: 12px; color: var(--navy); font-size: .82rem; }
+.comment-head span { color: #a0aec0; font-weight: 400; }
+.comment-item p { margin: 5px 0 0; white-space: pre-wrap; line-height: 1.45; font-size: .92rem; }
 .shelf-card .actions { position: absolute; top: 8px; right: 8px; display: none; gap: 4px; }
 .shelf-card:hover .actions { display: flex; }
 .shelf-card .actions button {

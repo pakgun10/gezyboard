@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS cards (
 );
 CREATE INDEX IF NOT EXISTS idx_cards_board ON cards(board_id, position);
 
+CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  author_name TEXT DEFAULT 'Anonim',
+  body TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_comments_card ON comments(card_id, created_at, id);
+
 -- Penyimpangan kecil dari rancangan: tabel sessions agar login pemilik
 -- tetap bertahan setelah server restart.
 CREATE TABLE IF NOT EXISTS sessions (
@@ -87,7 +96,7 @@ export interface Card {
   id: number; board_id: number; author_name: string; kind: string;
   title: string; body: string; media_url: string; link_url: string;
   color: string; position: number; section_id: number | null;
-  created_at: string; updated_at: string;
+  created_at: string; updated_at: string; comments_count?: number;
 }
 
 export interface Section {

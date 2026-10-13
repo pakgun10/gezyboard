@@ -13,6 +13,7 @@ import {
   updateBoard, deleteBoard, canAccessBoard, boardPublicView,
 } from "./boards";
 import { listCards, createCard, updateCard, moveCard, deleteCard, getCard } from "./cards";
+import { listComments, countComments, createComment } from "./comments";
 import { listSections, createSection, updateSection, moveSection, deleteSection, getSection } from "./sections";
 import { saveUpload } from "./uploads";
 import { checkWsAccess, joinRoom, leaveRoom, handleWsMessage, broadcast } from "./ws";
@@ -263,6 +264,36 @@ app.delete("/api/boards/:id/cards/:cardId", (c) => {
   deleteCard(existing.id);
   broadcast(board.id, { type: "card.deleted", id: existing.id, by: "rest" });
   return c.json({ ok: true });
+});
+
+// ---------- komentar kartu ----------
+
+function getAccessibleCard(c: any): { board: Board; card: NonNullable<ReturnType<typeof getCard>> } | { err: Response } {
+  const board = getBoard(Number(c.req.param("id")));
+  if (!board) return { err: c.json({ ok: false, error: "Papan tidak ditemukan." }, 404) };
+  if (!boardAccess(c, board)) return { err: c.json({ ok: false, error: "Tidak punya akses." }, 403) };
+  const card = getCard(Number(c.req.param("cardId")));
+  if (!card || card.board_id !== board.id) return { err: c.json({ ok: false, error: "Kartu tidak ditemukan." }, 404) };
+  return { board, card };
+}
+
+app.get("/api/boards/:id/cards/:cardId/comments", (c) => {
+  const result = getAccessibleCard(c);
+  if ("err" in result) return result.err;
+  return c.json({ ok: true, comments: listComments(result.card.id), comments_count: countComments(result.card.id) });
+});
+
+app.post("/api/boards/:id/cards/:cardId/comments", async (c) => {
+  const result = getAccessibleCard(c);
+  if ("err" in result) return result.err;
+  const data = await c.req.json().catch(() => ({}));
+  const body = String(data.body ?? "").trim();
+  if (!body) return c.json({ ok: false, error: "Komentar tidak boleh kosong." }, 400);
+  if (body.length > 2000) return c.json({ ok: false, error: "Komentar maksimal 2.000 karakter." }, 400);
+  const comment = createComment(result.card.id, { author_name: data.author_name, body });
+  const comments_count = countComments(result.card.id);
+  broadcast(result.board.id, { type: "comment.added", comment, comments_count });
+  return c.json({ ok: true, comment, comments_count });
 });
 
 // ---------- upload ----------

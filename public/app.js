@@ -16,6 +16,7 @@ const state = {
   modalKind: "text",
   modalColor: "yellow",
   uploadedUrl: "",
+  commentCardId: null,
 };
 
 /* ---------- util ---------- */
@@ -209,6 +210,15 @@ function handleServerMsg(msg) {
       state.cards = state.cards.filter((c) => c.id !== msg.id);
       renderBoard();
       break;
+    case "comment.added": {
+      const card = state.cards.find((c) => c.id === msg.comment?.card_id);
+      if (card) {
+        card.comments_count = msg.comments_count ?? Number(card.comments_count || 0) + 1;
+        renderBoard();
+      }
+      if (state.commentCardId === msg.comment?.card_id) loadComments();
+      break;
+    }
     case "presence":
       $("presenceCount").textContent = msg.count;
       break;
@@ -255,6 +265,8 @@ function cardHtml(c) {
   }
   if (c.body) inner += "<p>" + esc(c.body) + "</p>";
   inner += '<div class="meta">✍️ ' + esc(c.author_name) + "</div>";
+  inner += '<div class="card-footer"><button class="comment-link" data-act="comment">💬 ' +
+    Number(c.comments_count || 0) + ' · Tambah komentar</button></div>';
   inner += '<div class="actions"><button data-act="edit" title="Ubah">✏️</button>' +
     '<button data-act="del" title="Hapus">🗑️</button></div>';
   return inner;
@@ -281,6 +293,7 @@ function renderWall() {
     el.dataset.id = c.id;
     el.innerHTML = cardHtml(c);
     el.querySelector('[data-act="edit"]').onclick = (e) => { e.stopPropagation(); openCardModal(c); };
+    el.querySelector('[data-act="comment"]').onclick = (e) => { e.stopPropagation(); openCommentModal(c); };
     el.querySelector('[data-act="del"]').onclick = (e) => {
       e.stopPropagation();
       if (!confirm("Hapus kartu ini?")) return;
@@ -412,7 +425,8 @@ function shelfCardHtml(c) {
       esc(c.link_url) + "</a></div>";
   }
   if (c.body) inner += "<p>" + esc(c.body) + "</p>";
-  inner += '<div class="card-footer"><span class="like">♡</span><span>💬 0</span><span>＋ Tambah komentar</span></div>';
+  inner += '<div class="card-footer"><button class="comment-link" data-act="comment">💬 ' +
+    Number(c.comments_count || 0) + ' · Tambah komentar</button></div>';
   inner += '<div class="actions"><button data-act="edit" title="Ubah">✏️</button>' +
     '<button data-act="del" title="Hapus">🗑️</button></div>';
   return inner;
@@ -469,12 +483,13 @@ function renderShelf() {
     list.dataset.sectionId = secKey;
     for (const c of cardsInSection(col.id)) {
       const el = document.createElement("div");
-      el.className = "shelf-card";
+      el.className = "shelf-card note-" + (c.color || "yellow");
       el.draggable = true;
       el.dataset.id = c.id;
       el.dataset.sectionId = c.section_id == null ? "" : String(c.section_id);
       el.innerHTML = shelfCardHtml(c);
       el.querySelector('[data-act="edit"]').onclick = (e) => { e.stopPropagation(); openCardModal(c); };
+      el.querySelector('[data-act="comment"]').onclick = (e) => { e.stopPropagation(); openCommentModal(c); };
       el.querySelector('[data-act="del"]').onclick = (e) => {
         e.stopPropagation();
         if (!confirm("Hapus kartu ini?")) return;
@@ -674,6 +689,74 @@ function openCardModal(existing, presetSectionId) {
   $("cardModal").classList.add("open");
 }
 function closeCardModal() { $("cardModal").classList.remove("open"); }
+
+function commentPath(cardId) {
+  return "/api/boards/" + state.board.id + "/cards/" + cardId + "/comments?token=" +
+    encodeURIComponent(state.board.share_token);
+}
+
+function renderComments(comments) {
+  const list = $("commentList");
+  if (!comments.length) {
+    list.innerHTML = '<div class="comment-empty">Belum ada komentar. Jadilah yang pertama! 🙂</div>';
+    return;
+  }
+  list.innerHTML = comments.map((comment) =>
+    '<article class="comment-item"><div class="comment-head"><strong>' + esc(comment.author_name) +
+    '</strong><span>' + esc(timeAgo(comment.created_at)) + '</span></div><p>' + esc(comment.body) + '</p></article>'
+  ).join("");
+}
+
+async function loadComments() {
+  if (!state.commentCardId) return;
+  try {
+    const data = await api("GET", commentPath(state.commentCardId));
+    renderComments(data.comments || []);
+  } catch (e) {
+    $("commentError").textContent = e.message;
+  }
+}
+
+async function openCommentModal(card) {
+  state.commentCardId = card.id;
+  $("commentModalTitle").textContent = "💬 Komentar — " + (card.title || "Kartu");
+  $("commentBody").value = "";
+  $("commentError").textContent = "";
+  $("commentList").innerHTML = '<div class="comment-empty">Memuat komentar…</div>';
+  $("commentModal").classList.add("open");
+  await loadComments();
+}
+
+function closeCommentModal() {
+  $("commentModal").classList.remove("open");
+  state.commentCardId = null;
+}
+
+async function saveComment() {
+  const body = $("commentBody").value.trim();
+  if (!body) {
+    $("commentError").textContent = "Tulis komentar dulu ya. 😊";
+    return;
+  }
+  const button = $("addCommentBtn");
+  button.disabled = true;
+  $("commentError").textContent = "";
+  try {
+    const data = await api("POST", commentPath(state.commentCardId), {
+      author_name: authorName(), body,
+    });
+    const card = state.cards.find((c) => c.id === state.commentCardId);
+    if (card) card.comments_count = data.comments_count;
+    $("commentBody").value = "";
+    await loadComments();
+    renderBoard();
+  } catch (e) {
+    $("commentError").textContent = e.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function syncModalKind() {
   for (const b of document.querySelectorAll(".kind-tabs button")) {
     b.classList.toggle("sel", b.dataset.kind === state.modalKind);
@@ -764,6 +847,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("cancelCardBtn").onclick = closeCardModal;
   $("saveCardBtn").onclick = saveCard;
   $("cardModal").addEventListener("click", (e) => { if (e.target.id === "cardModal") closeCardModal(); });
+  $("cancelCommentBtn").onclick = closeCommentModal;
+  $("addCommentBtn").onclick = saveComment;
+  $("commentModal").addEventListener("click", (e) => { if (e.target.id === "commentModal") closeCommentModal(); });
   for (const b of document.querySelectorAll(".kind-tabs button")) {
     b.onclick = () => { state.modalKind = b.dataset.kind; syncModalKind(); };
   }
