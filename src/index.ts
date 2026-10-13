@@ -59,7 +59,12 @@ function boardAccess(c: any, board: Board): { id: number; username: string } | "
 async function servePublicFile(path: string, contentType: string) {
   const file = Bun.file(join(PUBLIC_DIR, path));
   if (!(await file.exists())) return new Response("Tidak ditemukan", { status: 404 });
-  return new Response(file, { headers: { "Content-Type": contentType } });
+  return new Response(file, {
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 // ---------- auth ----------
