@@ -44,6 +44,8 @@ function showView(name) {
   $("presenceBadge").style.display = name === "board" ? "" : "none";
   $("nameInput").style.display = name === "board" ? "" : "none";
   $("logoutBtn").style.display = (name === "dashboard" && state.me) ? "" : "none";
+  $("homeBtn").style.display = name === "board" ? "" : "none";
+  $("printBtn").style.display = name === "board" ? "" : "none";
 }
 
 /* ---------- auth & dashboard ---------- */
@@ -81,6 +83,7 @@ async function loadDashboard() {
     el.innerHTML =
       "<h3>" + esc(b.title) + "</h3>" +
       (b.description ? "<p>" + esc(b.description) + "</p>" : "") +
+      (b.submission_deadline ? '<p class="board-deadline">🗓️ Bisa diisi sampai ' + formatDateOnly(b.submission_deadline) + "</p>" : '<p class="board-deadline">🟢 Terbuka tanpa batas</p>') +
       '<div class="share-link"><code>' + esc(link) + '</code>' +
       '<button class="btn btn-navy btn-small" data-act="copy">📋</button></div>' +
       '<div class="row">' +
@@ -135,6 +138,7 @@ async function openBoardByToken(token) {
 
   $("boardTitleView").textContent = "📌 " + state.board.title;
   $("boardDescView").textContent = state.board.description || "";
+  syncSubmissionState();
   setupLayoutSwitch();
   showView("board");
   connectWs();
@@ -232,6 +236,32 @@ function handleServerMsg(msg) {
   }
 }
 
+function formatDateOnly(value) {
+  const parts = String(value || "").split("-");
+  return parts.length === 3 ? parts[2] + "-" + parts[1] + "-" + parts[0] : String(value || "");
+}
+
+function canSubmitClient() {
+  return !!state.isOwner || !state.board || state.board.submission_open !== false;
+}
+
+function syncSubmissionState() {
+  if (!state.board) return;
+  const deadline = state.board.submission_deadline;
+  const open = canSubmitClient();
+  const deadlineView = $("boardDeadlineView");
+  if (!deadline) deadlineView.textContent = "🟢 Dibuka sejak dibuat · Terbuka tanpa batas";
+  else if (state.board.submission_open === false) {
+    deadlineView.textContent = "🔒 Dibuka sejak dibuat · Masa pengisian berakhir pada " + formatDateOnly(deadline) +
+      (state.isOwner ? " · Pemilik masih dapat mengelola" : "");
+  } else {
+    deadlineView.textContent = "🟢 Dibuka sejak dibuat · Bisa diisi sampai " + formatDateOnly(deadline);
+  }
+  $("addCardBtn").disabled = !open;
+  $("addCardBtn").title = open ? "Tempel kartu" : "Masa pengisian sudah berakhir";
+  $("fabPost").disabled = !open;
+}
+
 function sortSections() {
   state.sections.sort((a, b) => a.position - b.position || a.id - b.id);
 }
@@ -267,8 +297,10 @@ function cardHtml(c) {
   inner += '<div class="meta">✍️ ' + esc(c.author_name) + "</div>";
   inner += '<div class="card-footer"><button class="comment-link" data-act="comment">💬 ' +
     Number(c.comments_count || 0) + ' · Tambah komentar</button></div>';
-  inner += '<div class="actions"><button data-act="edit" title="Ubah">✏️</button>' +
-    '<button data-act="del" title="Hapus">🗑️</button></div>';
+  if (canSubmitClient()) {
+    inner += '<div class="actions"><button data-act="edit" title="Ubah">✏️</button>' +
+      '<button data-act="del" title="Hapus">🗑️</button></div>';
+  }
   return inner;
 }
 
@@ -276,6 +308,7 @@ function cardHtml(c) {
 function renderBoard() {
   if (state.board && state.board.layout === "shelf") renderShelf();
   else renderWall();
+  syncSubmissionState();
 }
 
 function renderWall() {
@@ -289,12 +322,14 @@ function renderWall() {
   for (const c of state.cards) {
     const el = document.createElement("div");
     el.className = "stickynote note-" + (c.color || "yellow");
-    el.draggable = true;
+    el.draggable = canSubmitClient();
     el.dataset.id = c.id;
     el.innerHTML = cardHtml(c);
-    el.querySelector('[data-act="edit"]').onclick = (e) => { e.stopPropagation(); openCardModal(c); };
+    const editBtn = el.querySelector('[data-act="edit"]');
+    if (editBtn) editBtn.onclick = (e) => { e.stopPropagation(); openCardModal(c); };
     el.querySelector('[data-act="comment"]').onclick = (e) => { e.stopPropagation(); openCommentModal(c); };
-    el.querySelector('[data-act="del"]').onclick = (e) => {
+    const deleteBtn = el.querySelector('[data-act="del"]');
+    if (deleteBtn) deleteBtn.onclick = (e) => {
       e.stopPropagation();
       if (!confirm("Hapus kartu ini?")) return;
       // optimistis: hapus dulu di layar, server menyiarkan card.deleted sesudahnya
@@ -427,8 +462,10 @@ function shelfCardHtml(c) {
   if (c.body) inner += "<p>" + esc(c.body) + "</p>";
   inner += '<div class="card-footer"><button class="comment-link" data-act="comment">💬 ' +
     Number(c.comments_count || 0) + ' · Tambah komentar</button></div>';
-  inner += '<div class="actions"><button data-act="edit" title="Ubah">✏️</button>' +
-    '<button data-act="del" title="Hapus">🗑️</button></div>';
+  if (canSubmitClient()) {
+    inner += '<div class="actions"><button data-act="edit" title="Ubah">✏️</button>' +
+      '<button data-act="del" title="Hapus">🗑️</button></div>';
+  }
   return inner;
 }
 
@@ -475,6 +512,7 @@ function renderShelf() {
     addBtn.className = "add-card-btn";
     addBtn.textContent = "＋";
     addBtn.title = "Tempel kartu di bagian ini";
+    addBtn.disabled = !canSubmitClient();
     addBtn.onclick = () => openCardModal(null, col.id);
     secEl.appendChild(addBtn);
 
@@ -484,13 +522,15 @@ function renderShelf() {
     for (const c of cardsInSection(col.id)) {
       const el = document.createElement("div");
       el.className = "shelf-card note-" + (c.color || "yellow");
-      el.draggable = true;
+      el.draggable = canSubmitClient();
       el.dataset.id = c.id;
       el.dataset.sectionId = c.section_id == null ? "" : String(c.section_id);
       el.innerHTML = shelfCardHtml(c);
-      el.querySelector('[data-act="edit"]').onclick = (e) => { e.stopPropagation(); openCardModal(c); };
+      const editBtn = el.querySelector('[data-act="edit"]');
+      if (editBtn) editBtn.onclick = (e) => { e.stopPropagation(); openCardModal(c); };
       el.querySelector('[data-act="comment"]').onclick = (e) => { e.stopPropagation(); openCommentModal(c); };
-      el.querySelector('[data-act="del"]').onclick = (e) => {
+      const deleteBtn = el.querySelector('[data-act="del"]');
+      if (deleteBtn) deleteBtn.onclick = (e) => {
         e.stopPropagation();
         if (!confirm("Hapus kartu ini?")) return;
         state.cards = state.cards.filter((x) => x.id !== c.id);
@@ -724,6 +764,9 @@ async function openCommentModal(card) {
   $("commentError").textContent = "";
   $("commentList").innerHTML = '<div class="comment-empty">Memuat komentar…</div>';
   $("commentModal").classList.add("open");
+  const canComment = canSubmitClient();
+  $("commentComposer").style.display = canComment ? "" : "none";
+  $("commentClosedHint").style.display = canComment ? "none" : "";
   await loadComments();
 }
 
@@ -733,6 +776,7 @@ function closeCommentModal() {
 }
 
 async function saveComment() {
+  if (!canSubmitClient()) return;
   const body = $("commentBody").value.trim();
   if (!body) {
     $("commentError").textContent = "Tulis komentar dulu ya. 😊";
@@ -822,6 +866,9 @@ document.addEventListener("DOMContentLoaded", () => {
     location.href = "/";
   };
   $("homeLink").onclick = (e) => { e.preventDefault(); location.href = "/"; };
+  $("homeBtn").onclick = () => { location.href = "/"; };
+  $("printBtn").onclick = () => window.print();
+  $("boardDeadline").min = new Date().toISOString().slice(0, 10);
 
   $("newBoardBtn").onclick = () => {
     const f = $("newBoardForm");
@@ -834,6 +881,7 @@ document.addEventListener("DOMContentLoaded", () => {
         title: $("boardTitle").value,
         description: $("boardDesc").value,
         share_mode: $("boardMode").value,
+        submission_deadline: $("boardDeadline").value || null,
       });
       location.href = "/b/" + board.share_token;
     } catch (e) { $("boardError").textContent = e.message; }

@@ -73,6 +73,7 @@ a { color: var(--navy); }
 .btn-ghost:hover { border-color: #fff; }
 .btn-danger { background: #e05252; color: #fff; }
 .btn-small { padding: 6px 14px; font-size: .85rem; }
+.btn:disabled, .add-card-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- area utama ---------- */
 main { flex: 1; padding: 24px 20px; max-width: 1400px; width: 100%; margin: 0 auto; }
@@ -136,6 +137,7 @@ main { flex: 1; padding: 24px 20px; max-width: 1400px; width: 100%; margin: 0 au
 /* ---------- papan (wall) ---------- */
 .board-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .board-head h2 { margin: 0; color: var(--navy); }
+.board-deadline { font-weight: 700; margin-top: 4px; }
 .wall { column-width: 270px; column-gap: 16px; }
 .stickynote {
   break-inside: avoid;
@@ -257,6 +259,7 @@ footer {
   background: rgba(255,255,255,.08); color: #fff; font-size: 1.1rem; cursor: pointer;
 }
 .add-card-btn:hover { background: rgba(255,255,255,.18); }
+.add-card-btn:disabled:hover { background: rgba(255,255,255,.08); }
 .section-cards { min-height: 60px; border-radius: 10px; }
 .shelf-card {
   background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
@@ -306,6 +309,24 @@ footer {
 .comment-head { display: flex; justify-content: space-between; gap: 12px; color: var(--navy); font-size: .82rem; }
 .comment-head span { color: #a0aec0; font-weight: 400; }
 .comment-item p { margin: 5px 0 0; white-space: pre-wrap; line-height: 1.45; font-size: .92rem; }
+
+@media print {
+  @page { margin: 12mm; }
+  body { background: #fff; }
+  .topbar, footer, .board-head .layout-switch, .board-head button, .fab,
+  .actions, .card-footer, .add-card-btn, .add-section, .empty { display: none !important; }
+  main { max-width: none; padding: 0; }
+  #view-board { display: block !important; }
+  .board-head { margin-bottom: 12px; }
+  .board-head h2 { color: #000; }
+  .hint { color: #333; }
+  .wall { column-width: 240px; column-gap: 12px; }
+  .stickynote { box-shadow: none; border: 1px solid #bbb; }
+  .shelf { display: flex !important; flex-wrap: wrap; overflow: visible; min-height: 0; padding: 0; background: #fff; }
+  .section { width: 31%; }
+  .section-header { color: #000; background: #eee; }
+  .shelf-card { box-shadow: none; border: 1px solid #bbb; break-inside: avoid; }
+}
 .shelf-card .actions { position: absolute; top: 8px; right: 8px; display: none; gap: 4px; }
 .shelf-card:hover .actions { display: flex; }
 .shelf-card .actions button {

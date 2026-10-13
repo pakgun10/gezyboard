@@ -10,7 +10,8 @@ import {
 } from "./auth";
 import {
   createBoard, getBoard, getBoardByToken, listBoardsByOwner,
-  updateBoard, deleteBoard, canAccessBoard, boardPublicView,
+  updateBoard, deleteBoard, canAccessBoard, canSubmitToBoard, isSubmissionOpen, boardPublicView,
+  normalizeDeadline, todayInJakarta,
 } from "./boards";
 import { listCards, createCard, updateCard, moveCard, deleteCard, getCard } from "./cards";
 import { listComments, countComments, createComment } from "./comments";
@@ -54,6 +55,16 @@ function boardAccess(c: any, board: Board): { id: number; username: string } | "
   if (u && board.owner_id === u.id) return u;
   if (canAccessBoard(board, u ? u.id : null, token)) return u ?? "link";
   return null;
+}
+
+function submissionError(c: any, board: Board): string {
+  const user = currentUser(c);
+  const token = c.req.query("token") || "";
+  if (!canAccessBoard(board, user?.id ?? null, token)) return "Tidak punya akses.";
+  if (!isSubmissionOpen(board) && !(user && board.owner_id === user.id)) {
+    return "Batas pengisian board sudah berakhir.";
+  }
+  return "Tidak punya akses.";
 }
 
 async function servePublicFile(path: string, contentType: string) {
@@ -106,9 +117,15 @@ app.get("/api/boards", (c) => {
 app.post("/api/boards", async (c) => {
   const u = requireLogin(c);
   if (u instanceof Response) return u;
-  const { title, description, share_mode } = await c.req.json().catch(() => ({}));
+  const { title, description, share_mode, submission_deadline } = await c.req.json().catch(() => ({}));
   if (!String(title || "").trim()) return c.json({ ok: false, error: "Judul papan wajib diisi." }, 400);
-  const board = createBoard(u.id, String(title), String(description || ""), String(share_mode || "link"));
+  const rawDeadline = String(submission_deadline || "").trim();
+  const deadline = normalizeDeadline(rawDeadline);
+  if (rawDeadline && !deadline) return c.json({ ok: false, error: "Tanggal batas pengisian tidak valid." }, 400);
+  if (deadline && deadline < todayInJakarta()) {
+    return c.json({ ok: false, error: "Tanggal batas pengisian tidak boleh sudah lewat." }, 400);
+  }
+  const board = createBoard(u.id, String(title), String(description || ""), String(share_mode || "link"), deadline);
   return c.json({ ok: true, board });
 });
 
@@ -136,9 +153,18 @@ app.patch("/api/boards/:id", async (c) => {
   if (u instanceof Response) return u;
   const board = getBoard(Number(c.req.param("id")));
   if (!board || board.owner_id !== u.id) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
-  const { title, description, share_mode, layout } = await c.req.json().catch(() => ({}));
-  const updated = updateBoard(board.id, { title, description, share_mode, layout });
-  if (updated && updated.layout !== board.layout) {
+  const { title, description, share_mode, layout, submission_deadline } = await c.req.json().catch(() => ({}));
+  let deadlinePatch: string | null | undefined;
+  if (submission_deadline !== undefined) {
+    const rawDeadline = String(submission_deadline ?? "").trim();
+    deadlinePatch = normalizeDeadline(rawDeadline);
+    if (rawDeadline && !deadlinePatch) return c.json({ ok: false, error: "Tanggal batas pengisian tidak valid." }, 400);
+    if (deadlinePatch && deadlinePatch < todayInJakarta()) {
+      return c.json({ ok: false, error: "Tanggal batas pengisian tidak boleh sudah lewat." }, 400);
+    }
+  }
+  const updated = updateBoard(board.id, { title, description, share_mode, layout, submission_deadline: deadlinePatch });
+  if (updated && (updated.layout !== board.layout || updated.submission_deadline !== board.submission_deadline)) {
     broadcast(board.id, { type: "board.updated", board: boardPublicView(updated) });
   }
   return c.json({ ok: true, board: updated });
@@ -228,7 +254,10 @@ app.get("/api/boards/:id/cards", (c) => {
 app.post("/api/boards/:id/cards", async (c) => {
   const board = getBoard(Number(c.req.param("id")));
   if (!board) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
-  if (!boardAccess(c, board)) return c.json({ ok: false, error: "Tidak punya akses." }, 403);
+  const user = currentUser(c);
+  if (!canSubmitToBoard(board, user?.id ?? null, c.req.query("token") || "")) {
+    return c.json({ ok: false, error: submissionError(c, board) }, 403);
+  }
   const data = await c.req.json().catch(() => ({}));
   const card = createCard(board.id, data);
   broadcast(board.id, { type: "card.added", card, by: "rest" });
@@ -238,7 +267,10 @@ app.post("/api/boards/:id/cards", async (c) => {
 app.patch("/api/boards/:id/cards/:cardId", async (c) => {
   const board = getBoard(Number(c.req.param("id")));
   if (!board) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
-  if (!boardAccess(c, board)) return c.json({ ok: false, error: "Tidak punya akses." }, 403);
+  const user = currentUser(c);
+  if (!canSubmitToBoard(board, user?.id ?? null, c.req.query("token") || "")) {
+    return c.json({ ok: false, error: submissionError(c, board) }, 403);
+  }
   const existing = getCard(Number(c.req.param("cardId")));
   if (!existing || existing.board_id !== board.id) return c.json({ ok: false, error: "Kartu tidak ditemukan." }, 404);
   const data = await c.req.json().catch(() => ({}));
@@ -250,7 +282,10 @@ app.patch("/api/boards/:id/cards/:cardId", async (c) => {
 app.post("/api/boards/:id/cards/:cardId/move", async (c) => {
   const board = getBoard(Number(c.req.param("id")));
   if (!board) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
-  if (!boardAccess(c, board)) return c.json({ ok: false, error: "Tidak punya akses." }, 403);
+  const user = currentUser(c);
+  if (!canSubmitToBoard(board, user?.id ?? null, c.req.query("token") || "")) {
+    return c.json({ ok: false, error: submissionError(c, board) }, 403);
+  }
   const existing = getCard(Number(c.req.param("cardId")));
   if (!existing || existing.board_id !== board.id) return c.json({ ok: false, error: "Kartu tidak ditemukan." }, 404);
   const { position, section_id } = await c.req.json().catch(() => ({}));
@@ -263,7 +298,10 @@ app.post("/api/boards/:id/cards/:cardId/move", async (c) => {
 app.delete("/api/boards/:id/cards/:cardId", (c) => {
   const board = getBoard(Number(c.req.param("id")));
   if (!board) return c.json({ ok: false, error: "Papan tidak ditemukan." }, 404);
-  if (!boardAccess(c, board)) return c.json({ ok: false, error: "Tidak punya akses." }, 403);
+  const user = currentUser(c);
+  if (!canSubmitToBoard(board, user?.id ?? null, c.req.query("token") || "")) {
+    return c.json({ ok: false, error: submissionError(c, board) }, 403);
+  }
   const existing = getCard(Number(c.req.param("cardId")));
   if (!existing || existing.board_id !== board.id) return c.json({ ok: false, error: "Kartu tidak ditemukan." }, 404);
   deleteCard(existing.id);
@@ -291,6 +329,10 @@ app.get("/api/boards/:id/cards/:cardId/comments", (c) => {
 app.post("/api/boards/:id/cards/:cardId/comments", async (c) => {
   const result = getAccessibleCard(c);
   if ("err" in result) return result.err;
+  const user = currentUser(c);
+  if (!canSubmitToBoard(result.board, user?.id ?? null, c.req.query("token") || "")) {
+    return c.json({ ok: false, error: submissionError(c, result.board) }, 403);
+  }
   const data = await c.req.json().catch(() => ({}));
   const body = String(data.body ?? "").trim();
   if (!body) return c.json({ ok: false, error: "Komentar tidak boleh kosong." }, 400);
@@ -308,7 +350,7 @@ app.post("/api/upload", async (c) => {
   const boardId = Number(c.req.query("board") || 0);
   const token = c.req.query("token") || "";
   const board = boardId ? getBoard(boardId) : null;
-  const allowed = u || (board && canAccessBoard(board, null, token));
+  const allowed = board && canSubmitToBoard(board, u?.id ?? null, token);
   if (!allowed) return c.json({ ok: false, error: "Tidak punya akses mengunggah." }, 403);
   const form = await c.req.formData().catch(() => null);
   const file = form?.get("file");

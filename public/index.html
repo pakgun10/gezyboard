@@ -61,6 +61,11 @@
           <option value="private">🔒 Hanya saya (privat)</option>
         </select>
       </div>
+      <div class="field">
+        <label for="boardDeadline">Bisa diisi sampai tanggal (opsional)</label>
+        <input id="boardDeadline" type="date">
+        <div class="hint">Board terbuka sejak dibuat. Kosongkan jika tidak ada batas waktu.</div>
+      </div>
       <button class="btn btn-navy" id="createBoardBtn">Buat papan 🎉</button>
       <div class="error" id="boardError"></div>
     </div>
@@ -78,12 +83,15 @@
       <div>
         <h2 id="boardTitleView">📌</h2>
         <div class="hint" id="boardDescView"></div>
+        <div class="hint board-deadline" id="boardDeadlineView"></div>
       </div>
       <div class="spacer" style="flex:1"></div>
       <div class="layout-switch" id="layoutSwitch" style="display:none">
         <button data-layout="wall">🧱 Wall</button>
         <button data-layout="shelf">📑 Kolom</button>
       </div>
+      <button class="btn btn-navy btn-small" id="homeBtn" style="display:none">🏠 Home</button>
+      <button class="btn btn-navy btn-small" id="printBtn" style="display:none">🖨️ Cetak / PDF</button>
       <button class="btn btn-ghost btn-small" id="copyLinkBtn" style="color:var(--navy); border-color:var(--navy)">🔗 Salin tautan</button>
       <button class="btn btn-gold" id="addCardBtn">＋ Tempel kartu</button>
     </div>
@@ -150,15 +158,18 @@
   <div class="modal comment-modal">
     <h3 id="commentModalTitle">💬 Komentar</h3>
     <div id="commentList" class="comment-list"></div>
-    <div class="field">
-      <label for="commentBody">Tambah komentar</label>
-      <textarea id="commentBody" rows="3" maxlength="2000" placeholder="Tulis komentar kamu…"></textarea>
+    <div id="commentComposer">
+      <div class="field">
+        <label for="commentBody">Tambah komentar</label>
+        <textarea id="commentBody" rows="3" maxlength="2000" placeholder="Tulis komentar kamu…"></textarea>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:16px">
+        <button class="btn btn-gold" id="addCommentBtn" style="flex:1">Kirim komentar</button>
+        <button class="btn btn-navy" id="cancelCommentBtn">Batal</button>
+      </div>
+      <div class="error" id="commentError"></div>
     </div>
-    <div style="display:flex; gap:10px; margin-top:16px">
-      <button class="btn btn-gold" id="addCommentBtn" style="flex:1">Kirim komentar</button>
-      <button class="btn btn-navy" id="cancelCommentBtn">Batal</button>
-    </div>
-    <div class="error" id="commentError"></div>
+    <div class="hint comment-closed" id="commentClosedHint" style="display:none">Masa pengisian board sudah berakhir. Komentar baru ditutup.</div>
   </div>
 </div>
 

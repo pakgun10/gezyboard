@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS boards (
   share_token TEXT UNIQUE NOT NULL,
   share_mode TEXT DEFAULT 'link',
   layout TEXT DEFAULT 'wall',
+  submission_deadline TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -86,11 +87,16 @@ const cardCols = db.prepare("PRAGMA table_info(cards)").all() as { name: string 
 if (!cardCols.some((c) => c.name === "section_id")) {
   db.exec("ALTER TABLE cards ADD COLUMN section_id INTEGER REFERENCES sections(id) ON DELETE CASCADE");
 }
+const boardCols = db.prepare("PRAGMA table_info(boards)").all() as { name: string }[];
+if (!boardCols.some((c) => c.name === "submission_deadline")) {
+  db.exec("ALTER TABLE boards ADD COLUMN submission_deadline TEXT");
+}
 
 export interface User { id: number; username: string; password_hash: string; created_at: string }
 export interface Board {
   id: number; owner_id: number; title: string; description: string;
-  share_token: string; share_mode: string; layout: string; created_at: string;
+  share_token: string; share_mode: string; layout: string;
+  submission_deadline: string | null; created_at: string;
 }
 export interface Card {
   id: number; board_id: number; author_name: string; kind: string;

@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from "bun";
-import { getBoard, canAccessBoard } from "./boards";
+import { getBoard, canAccessBoard, isSubmissionOpen } from "./boards";
 import { getUserBySession, sessionTokenFromCookieHeader } from "./auth";
 import { listCards, createCard, updateCard, moveCard, deleteCard, getCard } from "./cards";
 import { listSections, createSection, updateSection, moveSection, deleteSection, getSection } from "./sections";
@@ -75,6 +75,11 @@ export function handleWsMessage(ws: RoomSocket, raw: string | Buffer): void {
   if (!board) { sendError(ws, "Papan tidak ditemukan."); return; }
   // Kelola bagian hanya boleh pemilik papan.
   const isOwner = userId !== null && board.owner_id === userId;
+  const needSubmissionOpen = () => {
+    if (isOwner || isSubmissionOpen(board)) return true;
+    sendError(ws, "Batas pengisian board sudah berakhir.");
+    return false;
+  };
   const needOwner = () => {
     if (!isOwner) { sendError(ws, "Hanya pemilik papan yang boleh mengelola bagian."); return false; }
     return true;
@@ -117,11 +122,13 @@ export function handleWsMessage(ws: RoomSocket, raw: string | Buffer): void {
         break;
       }
       case "card.add": {
+        if (!needSubmissionOpen()) break;
         const card = createCard(boardId, (msg.data ?? {}) as never);
         broadcast(boardId, { type: "card.added", card, by: clientId });
         break;
       }
       case "card.update": {
+        if (!needSubmissionOpen()) break;
         const id = Number(msg.data?.id);
         const existing = getCard(id);
         if (!existing || existing.board_id !== boardId) { sendError(ws, "Kartu tidak ditemukan."); break; }
@@ -130,6 +137,7 @@ export function handleWsMessage(ws: RoomSocket, raw: string | Buffer): void {
         break;
       }
       case "card.move": {
+        if (!needSubmissionOpen()) break;
         const id = Number(msg.data?.id);
         const existing = getCard(id);
         if (!existing || existing.board_id !== boardId) { sendError(ws, "Kartu tidak ditemukan."); break; }
@@ -140,6 +148,7 @@ export function handleWsMessage(ws: RoomSocket, raw: string | Buffer): void {
         break;
       }
       case "card.delete": {
+        if (!needSubmissionOpen()) break;
         const id = Number(msg.data?.id);
         const existing = getCard(id);
         if (!existing || existing.board_id !== boardId) { sendError(ws, "Kartu tidak ditemukan."); break; }
