@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GezyBoard — Papan Kolaboratif</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo"><a href="/" id="homeLink"><span class="pin">📌</span> GezyBoard</a></div>
+  <div class="spacer"></div>
+  <span class="presence" id="presenceBadge" style="display:none">👥 <span id="presenceCount">1</span> online</span>
+  <input class="name-input" id="nameInput" placeholder="Nama kamu…" maxlength="50" style="display:none">
+  <button class="btn btn-ghost btn-small" id="logoutBtn" style="display:none">Keluar</button>
+</header>
+
+<main>
+  <!-- Tampilan 1: Login -->
+  <section class="view" id="view-auth">
+    <div class="panel">
+      <h2>👋 Selamat datang di GezyBoard</h2>
+      <p class="hint">Papan digital tempat kita menempel ide bersama — seperti Padlet, buatan sendiri. 🏠 Keluarga GezyTech App.</p>
+      <div class="field">
+        <label for="loginUser">Username</label>
+        <input id="loginUser" autocomplete="username" placeholder="username pemilik">
+      </div>
+      <div class="field">
+        <label for="loginPass">Password</label>
+        <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="btn btn-gold" id="loginBtn" style="width:100%">Masuk 🚀</button>
+      <div class="error" id="loginError"></div>
+      <p class="hint">Punya tautan papan dari guru/teman? Buka tautannya langsung — tidak perlu login untuk ikut menempel kartu. 😊</p>
+    </div>
+  </section>
+
+  <!-- Tampilan 2: Dashboard pemilik -->
+  <section class="view" id="view-dashboard">
+    <div class="board-head">
+      <h2>📋 Papan-papanku</h2>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn btn-gold" id="newBoardBtn">＋ Papan baru</button>
+    </div>
+
+    <div class="panel" id="newBoardForm" style="display:none; max-width:100%; margin:0 0 18px;">
+      <h2>✨ Buat papan baru</h2>
+      <div class="field">
+        <label for="boardTitle">Judul papan</label>
+        <input id="boardTitle" placeholder="mis. Brainstorming Ide Proyek Kelas 7A">
+      </div>
+      <div class="field">
+        <label for="boardDesc">Deskripsi (opsional)</label>
+        <textarea id="boardDesc" rows="2" placeholder="Tuliskan petunjuk untuk peserta…"></textarea>
+      </div>
+      <div class="field">
+        <label for="boardMode">Siapa yang bisa membuka tautan?</label>
+        <select id="boardMode">
+          <option value="link">🔗 Siapa pun yang punya tautan (bisa menempel kartu)</option>
+          <option value="private">🔒 Hanya saya (privat)</option>
+        </select>
+      </div>
+      <button class="btn btn-navy" id="createBoardBtn">Buat papan 🎉</button>
+      <div class="error" id="boardError"></div>
+    </div>
+
+    <div class="board-list" id="boardList"></div>
+    <div class="empty" id="boardEmpty" style="display:none">
+      <div class="big">🗂️</div>
+      <p>Belum ada papan. Yuk buat yang pertama!</p>
+    </div>
+  </section>
+
+  <!-- Tampilan 3: Papan (wall) -->
+  <section class="view" id="view-board">
+    <div class="board-head">
+      <div>
+        <h2 id="boardTitleView">📌</h2>
+        <div class="hint" id="boardDescView"></div>
+      </div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn btn-ghost btn-small" id="copyLinkBtn" style="color:var(--navy); border-color:var(--navy)">🔗 Salin tautan</button>
+      <button class="btn btn-gold" id="addCardBtn">＋ Tempel kartu</button>
+    </div>
+    <div class="wall" id="wall"></div>
+    <div class="empty" id="wallEmpty" style="display:none">
+      <div class="big">📝</div>
+      <p>Papan masih kosong. Jadilah yang pertama menempel kartu! ✨</p>
+    </div>
+  </section>
+</main>
+
+<!-- Modal tambah/ubah kartu -->
+<div class="modal-backdrop" id="cardModal">
+  <div class="modal">
+    <h3 id="cardModalTitle">✨ Kartu baru</h3>
+    <div class="kind-tabs">
+      <button data-kind="text" class="sel">📝 Teks</button>
+      <button data-kind="image">🖼️ Gambar</button>
+      <button data-kind="link">🔗 Tautan</button>
+    </div>
+    <div class="field">
+      <label for="cardTitle">Judul (opsional)</label>
+      <input id="cardTitle" maxlength="200" placeholder="Judul kartu…">
+    </div>
+    <div class="field" id="bodyField">
+      <label for="cardBody">Isi</label>
+      <textarea id="cardBody" rows="4" maxlength="5000" placeholder="Tulis idemu di sini…"></textarea>
+    </div>
+    <div class="field" id="imageField" style="display:none">
+      <label for="cardImage">Unggah gambar (maks 5 MB)</label>
+      <input id="cardImage" type="file" accept="image/*">
+      <img class="preview-img" id="imagePreview" style="display:none">
+    </div>
+    <div class="field" id="linkField" style="display:none">
+      <label for="cardLink">URL tautan</label>
+      <input id="cardLink" placeholder="https://contoh.id/artikel">
+    </div>
+    <div class="field">
+      <label>Warna kartu</label>
+      <div class="color-pick" id="colorPick">
+        <button data-color="yellow" class="sel note-yellow" title="Kuning"></button>
+        <button data-color="pink" class="note-pink" title="Merah muda"></button>
+        <button data-color="green" class="note-green" title="Hijau"></button>
+        <button data-color="blue" class="note-blue" title="Biru"></button>
+        <button data-color="purple" class="note-purple" title="Ungu"></button>
+        <button data-color="orange" class="note-orange" title="Oranye"></button>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:16px">
+      <button class="btn btn-gold" id="saveCardBtn" style="flex:1">Tempel! 📌</button>
+      <button class="btn btn-navy" id="cancelCardBtn">Batal</button>
+    </div>
+    <div class="error" id="cardError"></div>
+  </div>
+</div>
+
+<footer>© 2026 GezyTech App · Dikembangkan oleh PakGun · Dilarang menyalin/menduplikat kode tanpa izin tertulis.</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
